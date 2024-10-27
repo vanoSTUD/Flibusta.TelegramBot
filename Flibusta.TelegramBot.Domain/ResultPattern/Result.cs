@@ -16,8 +16,8 @@ public class Result<TValue>
 
     public TValue? Value { get; private set; }
     public Error? Error { get; private set; }
-    public bool IsSuccess => Error != null;
-    public bool IsFailure => Error == null;
+    public bool IsSuccess => Error == null;
+    public bool IsFailure => Error != null;
 
     public static Result<TValue> Failure(Error error) => new Result<TValue>(error);
 
