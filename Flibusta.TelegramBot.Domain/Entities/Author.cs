@@ -1,4 +1,4 @@
-﻿namespace Flibusta.TelegramBot.Domain.Entities;
+﻿namespace Flibusta.TelegramBot.Core.Entities;
 
 public class Author
 {

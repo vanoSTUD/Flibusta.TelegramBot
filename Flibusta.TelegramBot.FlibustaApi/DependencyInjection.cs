@@ -1,5 +1,5 @@
-﻿using Flibusta.TelegramBot.Domain.Abstractions;
-using Flibusta.TelegramBot.Domain.Entities;
+﻿using Flibusta.TelegramBot.Core.Abstractions;
+using Flibusta.TelegramBot.Core.Entities;
 using Flibusta.TelegramBot.FlibustaApi.Parsers;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,5 +13,6 @@ public static class DependencyInjection
 
 		services.AddSingleton<IPageParser<Book>, BookParser>();
 		services.AddSingleton<IPageParser<List<Book>>, BookCollectionParser>();
+		services.AddSingleton<IBookCountProvider, BookCollectionParser>();
 	}
 }

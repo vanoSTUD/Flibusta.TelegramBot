@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-
-namespace Flibusta.TelegramBot.Domain.ResultPattern;
+﻿namespace Flibusta.TelegramBot.Core.ResultPattern;
 
 public class Error
 {

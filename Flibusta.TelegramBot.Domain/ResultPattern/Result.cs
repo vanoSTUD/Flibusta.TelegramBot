@@ -1,4 +1,4 @@
-﻿namespace Flibusta.TelegramBot.Domain.ResultPattern;
+﻿namespace Flibusta.TelegramBot.Core.ResultPattern;
 
 public class Result<TValue>
 {

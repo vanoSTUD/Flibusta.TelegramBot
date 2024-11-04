@@ -1,10 +1,11 @@
-﻿using Flibusta.TelegramBot.Domain.Entities;
-using Flibusta.TelegramBot.Domain.ResultPattern;
+﻿using Flibusta.TelegramBot.Core.Entities;
+using Flibusta.TelegramBot.Core.ResultPattern;
 
-namespace Flibusta.TelegramBot.Domain.Abstractions;
+namespace Flibusta.TelegramBot.Core.Abstractions;
 
 public interface IFlibustaApi
 {
-	public Task<Result<Book>> GetBookAsync(int id, CancellationToken cancellationToken = default);
-	public Task<Result<List<Book>>> GetBooksPageAsync(string bookTitle, int page, int pageSize, CancellationToken cancellationToken = default);
+	Task<Result<Book>> GetBookAsync(int id, CancellationToken cancellationToken = default);
+	Task<Result<List<Book>>> GetBooksByPageAsync(string bookTitle, int page, int pageSize, CancellationToken cancellationToken = default);
+	Task<Result<int>> GetBookCountAsync(string bookTitle, CancellationToken cancellationToken = default);
 }

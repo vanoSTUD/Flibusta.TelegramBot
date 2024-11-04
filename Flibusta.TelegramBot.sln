@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.10.35004.147
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Flibusta.TelegramBot.Domain", "Flibusta.TelegramBot.Domain\Flibusta.TelegramBot.Domain.csproj", "{E5325DEE-CFE4-458D-A746-F41EC7D315ED}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Flibusta.TelegramBot.Core", "Flibusta.TelegramBot.Domain\Flibusta.TelegramBot.Core.csproj", "{E5325DEE-CFE4-458D-A746-F41EC7D315ED}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Flibusta.TelegramBot.FlibustaApi", "Flibusta.TelegramBot.FlibustaApi\Flibusta.TelegramBot.FlibustaApi.csproj", "{5634054A-5312-4333-A50B-A93E9F27CFEA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Flibusta.TelegramBot.FlibustaApi", "Flibusta.TelegramBot.FlibustaApi\Flibusta.TelegramBot.FlibustaApi.csproj", "{5634054A-5312-4333-A50B-A93E9F27CFEA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Flibusta.TelegramBot.API", "Flibusta.TelegramBot.API\Flibusta.TelegramBot.API.csproj", "{8B7A72EE-5BF1-4AD0-801B-44D89425708D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Flibusta.TelegramBot.API", "Flibusta.TelegramBot.API\Flibusta.TelegramBot.API.csproj", "{8B7A72EE-5BF1-4AD0-801B-44D89425708D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

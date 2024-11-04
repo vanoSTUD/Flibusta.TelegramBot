@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Flibusta.TelegramBot.Domain\Flibusta.TelegramBot.Domain.csproj" />
+    <ProjectReference Include="..\Flibusta.TelegramBot.Domain\Flibusta.TelegramBot.Core.csproj" />
   </ItemGroup>
 
 </Project>

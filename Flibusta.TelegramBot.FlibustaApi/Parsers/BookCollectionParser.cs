@@ -1,13 +1,13 @@
-﻿using Flibusta.TelegramBot.Domain.Abstractions;
-using Flibusta.TelegramBot.Domain.Entities;
-using Flibusta.TelegramBot.Domain.ResultPattern;
+﻿using Flibusta.TelegramBot.Core.Abstractions;
+using Flibusta.TelegramBot.Core.Entities;
+using Flibusta.TelegramBot.Core.ResultPattern;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
 using System.Web;
 
 namespace Flibusta.TelegramBot.FlibustaApi.Parsers;
 
-public class BookCollectionParser : IPageParser<List<Book>>
+public class BookCollectionParser : IPageParser<List<Book>>, IBookCountProvider
 {
 	private readonly ILogger<BookCollectionParser> _logger;
 	private readonly HtmlWeb _htmlWeb = new();
@@ -17,92 +17,188 @@ public class BookCollectionParser : IPageParser<List<Book>>
 		_logger = logger;
 	}
 
-	public async Task<Result<List<Book>>> ParseAsync(Uri pageUri,  CancellationToken cancellationToken = default)
+	/// <summary>
+	/// Возвращает коллекцию книг согласно указанной пагинации 
+	/// </summary>
+	/// <param name="pageUri">Ссылка на веб-страницу поиска книги с get параметром ask</param>
+	/// <param name="page">Пагинация: номер страницы</param>
+	/// <param name="pageSize">Пагинация: кол-во книг в странице</param>
+	public async Task<Result<List<Book>>> ParseAsync(Uri pageUri, int page, int pageSize,  CancellationToken cancellationToken = default)
 	{
-		var queryParams = HttpUtility.ParseQueryString(pageUri.Query);
-		var bookTitle = queryParams?["ask"];
+        cancellationToken.ThrowIfCancellationRequested();
 
-		try
-		{
-			int pageCount = await GetPageCountAsync(pageUri, cancellationToken);
-			var books = new List<Book>();
+        var queryParams = HttpUtility.ParseQueryString(pageUri.Query);
+        var bookTitle = queryParams["ask"];
 
-			for (int i = 0; i <= pageCount; i++)
-			{
-				var foundedBooks = await GetBooksByPageAsync(pageUri, i, cancellationToken);
-				books.AddRange(foundedBooks);
-			}
+        try
+        {
+            var bookCountResult = await GetBookCountAsync(pageUri, cancellationToken);
 
-			if (books == null)
-			{
-				return new Error($"Не удалось получить информацию о книгах с названием '{bookTitle}'");
-			}
+            if (bookCountResult.IsFailure)
+                return new Error($"Книг с совпадением '{bookTitle}' не найдено");
 
-			if (books.Count == 0)
-			{
-				return new Error($"Книг с названием '{bookTitle}' не найдено");
-			}
+            var bookCount = bookCountResult.Value!;
 
-			return books;
-		}
-		catch (Exception ex)
+            if (bookCount == 0)
+                return new Error($"Книг с совпадением '{bookTitle}' не найдено");
+
+            if ((page * pageSize - pageSize) >= bookCount)
+                return new Error($"Похожих книг больше не найдено");
+
+            var books = await GetBooksAsync(pageUri, page, pageSize, bookCount, cancellationToken);
+
+            if (books == null)
+                return new Error($"Не удалось получить информацию о книгах с совпадением '{bookTitle}'");
+
+            if (books.Count == 0)
+                return new Error($"Книг с совпадением '{bookTitle}' не найдено");
+
+            return books;
+        }
+        catch (Exception ex)
 		{
 			_logger.LogError("Exception: {e}", ex);
 
-			return new Error($"Книг с названием '{bookTitle}' не найдено");
-		}
-	}
+			return new Error($"Не удалось получить информацию о книгах с совпадением '{bookTitle}'");
+        }
+    }
 
-	private async Task<List<Book>> GetBooksByPageAsync(Uri booksUri, int page, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Возвращает кол-во найденных книг по веб-ссылке на страницу поиска книги с get параметром'ask'
+    /// </summary>
+    /// <param name="pageUri">Веб-ссылка на страницу посика книги с get параметром 'ask'</param>
+    public async Task<Result<int>> GetBookCountAsync(Uri pageUri, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            int bookCount = 0;
+            var webPageCount = await GetWebpageCountAsync(pageUri, cancellationToken);
+
+            for (int webPage = 0; webPage <= webPageCount; webPage++)
+            {
+                var bookCountByWebpage = await GetBookCountByWebpageAsync(pageUri, webPage, cancellationToken);
+
+                bookCount += bookCountByWebpage;
+            }
+
+            return bookCount;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Exception: {e}", ex);
+
+            return new Error($"Не удалось получить информацию о книгах");
+        }
+    }
+
+    private async Task<List<Book>> GetBooksAsync(Uri pageUri, int page, int pageSize, int bookCount, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var endBookNumber = page * pageSize;
+        var startBookNumber = endBookNumber - pageSize + 1;
+        var currentBookNumber = 0;
+        var currentWebpageNumber = 0;
+        var webPageCount = await GetWebpageCountAsync(pageUri, cancellationToken);
+        var bookNodes = new List<HtmlNode>();
+
+        while (currentBookNumber <= bookCount &&
+               currentBookNumber < endBookNumber)
+        {
+            var bookCountByWebpage = await GetBookCountByWebpageAsync(pageUri, currentWebpageNumber, cancellationToken);
+
+            if ((bookCountByWebpage + currentBookNumber) <= startBookNumber)
+            {
+                currentBookNumber += bookCountByWebpage;
+            }
+            else
+            {
+                var skipBookCount = startBookNumber - currentBookNumber - 1;
+                var takeBookCount = pageSize;
+
+                if (skipBookCount < 0)
+                {
+                    takeBookCount = pageSize + skipBookCount;
+                    skipBookCount = 0;
+                }
+                else if (skipBookCount == startBookNumber)
+                {
+                    skipBookCount--;
+                }
+
+                var queryParams = HttpUtility.ParseQueryString(pageUri.Query);
+                var requestUrl = $"{pageUri.Scheme}://{pageUri.Host}/booksearch?page={currentWebpageNumber}&ask={queryParams["ask"]}";
+                var document = await _htmlWeb.LoadFromWebAsync(requestUrl);
+
+                var newBookNodes = document.DocumentNode.SelectNodes("//div[@id='main']/li")
+                        .Where(x => x.OuterHtml.Contains("/b/"))
+                        .Skip(skipBookCount)
+                        .Take(takeBookCount).ToList();
+
+                if (newBookNodes == null)
+                    break;
+
+                if (newBookNodes.Count == 0)
+                    break;
+
+                bookNodes.AddRange(newBookNodes);
+                currentBookNumber += newBookNodes.Count + skipBookCount;
+            }
+
+            currentWebpageNumber++;
+
+            if (currentWebpageNumber > webPageCount)
+                break;
+        }
+
+        var books = new List<Book>();
+
+        foreach (var bookNode in bookNodes)
+        {
+            var title = bookNode.FirstChild.InnerText;
+            var authorName = bookNode.ChildNodes.Where(x => x.OuterHtml.Contains("/a/")).FirstOrDefault()?.InnerText ?? string.Empty;
+            (var bookId, var authorId) = GetIds(bookNode);
+
+            var book = new Book()
+            {
+                Id = bookId,
+                Title = title,
+                Authors =
+                [
+                    new Author()
+                    {
+                        Id = authorId,
+                        Name = authorName
+                    }
+                ]
+            };
+
+            books.Add(book);
+        }
+
+        return books;
+    }
+
+	private async Task<int> GetBookCountByWebpageAsync(Uri pageUri, int webPage, CancellationToken cancellationToken = default)
 	{
-		try
-		{
-			cancellationToken.ThrowIfCancellationRequested();
+        var query = pageUri.Query;
+        var queryParams = HttpUtility.ParseQueryString(query);
 
-			var query = booksUri.Query;
-			var queryParams = HttpUtility.ParseQueryString(query);
+        string requestUrl = $"{pageUri.Scheme}://{pageUri.Host}/booksearch?page={webPage}&ask={queryParams["ask"]}";
+        var document = await _htmlWeb.LoadFromWebAsync(requestUrl, cancellationToken);
 
-			string requestUrl = $"{booksUri.Scheme}://{booksUri.Host}/booksearch?page={page}&ask={queryParams["ask"]}";
-			var document = await _htmlWeb.LoadFromWebAsync(requestUrl, cancellationToken);
+        if (document.DocumentNode.SelectSingleNode("//*[@id=\"main\"]/p[2]") != null)
+            return 0;
 
-			var bookElements = document.DocumentNode.SelectNodes("//div[@id='main']/li")
-					.Where(x => x.OuterHtml.Contains("/b/"));
+        var bookCount = document.DocumentNode.SelectNodes("//div[@id='main']/li")
+                .Count(x => x.OuterHtml.Contains("/b/"));
 
-			var books = new List<Book>();
+        return bookCount;
+    }
 
-			foreach (var element in bookElements)
-			{
-				var title = element.FirstChild.InnerText;
-				var authorName = element.LastChild.InnerText;
-				(var bookId, var authorId) = GetIds(element);
-
-				var book = new Book()
-				{
-					Id = bookId,
-					Title = title,
-					Authors =
-					[
-						new Author()
-					{
-						Id = authorId,
-						Name = authorName
-					}
-					]
-				};
-
-				books.Add(book);
-			}
-
-			return books;
-		}
-		catch 
-		{
-			_logger.LogError("Ecxeption при получении книг по номеру страницы в BookCollectionParser.GetBooksByPageAsync()");
-			throw;
-		}
-	}
-
-	private async Task<int> GetPageCountAsync(Uri booksUri, CancellationToken cancellationToken = default)
+	private async Task<int> GetWebpageCountAsync(Uri booksUri, CancellationToken cancellationToken = default)
 	{
 		try
 		{
@@ -134,7 +230,7 @@ public class BookCollectionParser : IPageParser<List<Book>>
 		}
 	}
 
-	/// <returns>(bookId, authorId)</returns>
+	/// <returns>(book Id, author Id)</returns>
 	private (int, int) GetIds(HtmlNode bookNode)
 	{
 		try
@@ -156,3 +252,4 @@ public class BookCollectionParser : IPageParser<List<Book>>
 		}
 	}
 }
+
