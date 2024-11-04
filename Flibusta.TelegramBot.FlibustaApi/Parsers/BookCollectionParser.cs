@@ -17,13 +17,15 @@ public class BookCollectionParser : IPageParser<List<Book>>, IBookCountProvider
 		_logger = logger;
 	}
 
-	/// <summary>
-	/// Возвращает коллекцию книг согласно указанной пагинации 
-	/// </summary>
-	/// <param name="pageUri">Ссылка на веб-страницу поиска книги с get параметром ask</param>
-	/// <param name="page">Пагинация: номер страницы</param>
-	/// <param name="pageSize">Пагинация: кол-во книг в странице</param>
-	public async Task<Result<List<Book>>> ParseAsync(Uri pageUri, int page, int pageSize,  CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Возвращает коллекцию книг согласно указанной пагинации 
+    /// </summary>
+    /// <param name="pageUri">Ссылка на веб-страницу поиска книги с get параметром ask</param>
+    /// <param name="page">Пагинация: номер страницы</param>
+    /// <param name="pageSize">Пагинация: кол-во книг в странице</param>
+    /// <exception cref="OperationCanceledException"></exception>
+    /// <exception cref="TaskCanceledException"></exception>
+    public async Task<Result<List<Book>>> ParseAsync(Uri pageUri, int page, int pageSize,  CancellationToken cancellationToken = default)
 	{
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -55,6 +57,14 @@ public class BookCollectionParser : IPageParser<List<Book>>, IBookCountProvider
 
             return books;
         }
+        catch (TaskCanceledException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
 		{
 			_logger.LogError("Exception: {e}", ex);
@@ -67,6 +77,8 @@ public class BookCollectionParser : IPageParser<List<Book>>, IBookCountProvider
     /// Возвращает кол-во найденных книг по веб-ссылке на страницу поиска книги с get параметром'ask'
     /// </summary>
     /// <param name="pageUri">Веб-ссылка на страницу посика книги с get параметром 'ask'</param>
+    /// <exception cref="OperationCanceledException"></exception>
+    /// <exception cref="TaskCanceledException"></exception>
     public async Task<Result<int>> GetBookCountAsync(Uri pageUri, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -85,6 +97,14 @@ public class BookCollectionParser : IPageParser<List<Book>>, IBookCountProvider
 
             return bookCount;
         }
+        catch (TaskCanceledException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError("Exception: {e}", ex);
@@ -97,113 +117,148 @@ public class BookCollectionParser : IPageParser<List<Book>>, IBookCountProvider
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var endBookNumber = page * pageSize;
-        var startBookNumber = endBookNumber - pageSize + 1;
-        var currentBookNumber = 0;
-        var currentWebpageNumber = 0;
-        var webPageCount = await GetWebpageCountAsync(pageUri, cancellationToken);
-        var bookNodes = new List<HtmlNode>();
-
-        while (currentBookNumber <= bookCount &&
-               currentBookNumber < endBookNumber)
+        try
         {
-            var bookCountByWebpage = await GetBookCountByWebpageAsync(pageUri, currentWebpageNumber, cancellationToken);
+            var endBookNumber = page * pageSize;
+            var startBookNumber = endBookNumber - pageSize + 1;
+            var currentBookNumber = 0;
+            var currentWebpageNumber = 0;
+            var webPageCount = await GetWebpageCountAsync(pageUri, cancellationToken);
+            var bookNodes = new List<HtmlNode>();
 
-            if ((bookCountByWebpage + currentBookNumber) <= startBookNumber)
+            while (currentBookNumber <= bookCount &&
+                   currentBookNumber < endBookNumber)
             {
-                currentBookNumber += bookCountByWebpage;
-            }
-            else
-            {
-                var skipBookCount = startBookNumber - currentBookNumber - 1;
-                var takeBookCount = pageSize;
+                var bookCountByWebpage = await GetBookCountByWebpageAsync(pageUri, currentWebpageNumber, cancellationToken);
 
-                if (skipBookCount < 0)
-                {
-                    takeBookCount = pageSize + skipBookCount;
-                    skipBookCount = 0;
-                }
-                else if (skipBookCount == startBookNumber)
-                {
-                    skipBookCount--;
-                }
-
-                var queryParams = HttpUtility.ParseQueryString(pageUri.Query);
-                var requestUrl = $"{pageUri.Scheme}://{pageUri.Host}/booksearch?page={currentWebpageNumber}&ask={queryParams["ask"]}";
-                var document = await _htmlWeb.LoadFromWebAsync(requestUrl);
-
-                var newBookNodes = document.DocumentNode.SelectNodes("//div[@id='main']/li")
-                        .Where(x => x.OuterHtml.Contains("/b/"))
-                        .Skip(skipBookCount)
-                        .Take(takeBookCount).ToList();
-
-                if (newBookNodes == null)
+                if (bookCountByWebpage == 0)
                     break;
 
-                if (newBookNodes.Count == 0)
-                    break;
+                if ((bookCountByWebpage + currentBookNumber) <= startBookNumber)
+                {
+                    currentBookNumber += bookCountByWebpage;
+                }
+                else
+                {
+                    var skipBookCount = startBookNumber - currentBookNumber - 1;
+                    var takeBookCount = pageSize;
 
-                bookNodes.AddRange(newBookNodes);
-                currentBookNumber += newBookNodes.Count + skipBookCount;
-            }
-
-            currentWebpageNumber++;
-
-            if (currentWebpageNumber > webPageCount)
-                break;
-        }
-
-        var books = new List<Book>();
-
-        foreach (var bookNode in bookNodes)
-        {
-            var title = bookNode.FirstChild.InnerText;
-            var authorName = bookNode.ChildNodes.Where(x => x.OuterHtml.Contains("/a/")).FirstOrDefault()?.InnerText ?? string.Empty;
-            (var bookId, var authorId) = GetIds(bookNode);
-
-            var book = new Book()
-            {
-                Id = bookId,
-                Title = title,
-                Authors =
-                [
-                    new Author()
+                    if (skipBookCount < 0)
                     {
-                        Id = authorId,
-                        Name = authorName
+                        takeBookCount = pageSize + skipBookCount;
+                        skipBookCount = 0;
                     }
-                ]
-            };
+                    else if (skipBookCount == startBookNumber)
+                    {
+                        skipBookCount--;
+                    }
 
-            books.Add(book);
+                    var queryParams = HttpUtility.ParseQueryString(pageUri.Query);
+                    var requestUrl = $"{pageUri.Scheme}://{pageUri.Host}/booksearch?page={currentWebpageNumber}&ask={queryParams["ask"]}";
+                    var document = await _htmlWeb.LoadFromWebAsync(requestUrl);
+
+                    var newBookNodes = document.DocumentNode.SelectNodes("//div[@id='main']/li")
+                            .Where(x => x.OuterHtml.Contains("/b/"))
+                            .Skip(skipBookCount)
+                            .Take(takeBookCount).ToList();
+
+                    if (newBookNodes == null)
+                        break;
+
+                    if (newBookNodes.Count == 0)
+                        break;
+
+                    bookNodes.AddRange(newBookNodes);
+                    currentBookNumber += newBookNodes.Count + skipBookCount;
+                }
+
+                currentWebpageNumber++;
+
+                if (currentWebpageNumber > webPageCount)
+                    break;
+            }
+
+            var books = new List<Book>();
+
+            foreach (var bookNode in bookNodes)
+            {
+                var title = bookNode.FirstChild.InnerText;
+                var authorName = bookNode.ChildNodes.Where(x => x.OuterHtml.Contains("/a/")).FirstOrDefault()?.InnerText ?? string.Empty;
+                (var bookId, var authorId) = GetIds(bookNode);
+
+                var book = new Book()
+                {
+                    Id = bookId,
+                    Title = title,
+                    Authors =
+                    [
+                        new Author()
+                        {
+                            Id = authorId,
+                            Name = authorName
+                        }
+                    ]
+                };
+
+                books.Add(book);
+            }
+
+            return books;
         }
-
-        return books;
+        catch(TaskCanceledException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Исключение при попытке получении книг в BookCollectionParser.GetBooksAsync(): {ex}", ex);
+            return [];
+        }
     }
 
 	private async Task<int> GetBookCountByWebpageAsync(Uri pageUri, int webPage, CancellationToken cancellationToken = default)
 	{
-        var query = pageUri.Query;
-        var queryParams = HttpUtility.ParseQueryString(query);
+        try
+        {
+            var query = pageUri.Query;
+            var queryParams = HttpUtility.ParseQueryString(query);
 
-        string requestUrl = $"{pageUri.Scheme}://{pageUri.Host}/booksearch?page={webPage}&ask={queryParams["ask"]}";
-        var document = await _htmlWeb.LoadFromWebAsync(requestUrl, cancellationToken);
+            string requestUrl = $"{pageUri.Scheme}://{pageUri.Host}/booksearch?page={webPage}&ask={queryParams["ask"]}";
+            var document = await _htmlWeb.LoadFromWebAsync(requestUrl, cancellationToken);
 
-        if (document.DocumentNode.SelectSingleNode("//*[@id=\"main\"]/p[2]") != null)
+            if (document.DocumentNode.SelectSingleNode("//*[@id=\"main\"]/p[2]") != null)
+                return 0;
+
+            var bookCount = document.DocumentNode.SelectNodes("//div[@id='main']/li")
+                    .Count(x => x.OuterHtml.Contains("/b/"));
+
+            return bookCount;
+        }
+        catch (TaskCanceledException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Исключение при получении количества кол-ва страниц при поиске книг в BookCollectionParser.GetPageCountAsync(): {ex}", ex);
             return 0;
-
-        var bookCount = document.DocumentNode.SelectNodes("//div[@id='main']/li")
-                .Count(x => x.OuterHtml.Contains("/b/"));
-
-        return bookCount;
+        }
     }
 
 	private async Task<int> GetWebpageCountAsync(Uri booksUri, CancellationToken cancellationToken = default)
 	{
-		try
-		{
-			cancellationToken.ThrowIfCancellationRequested();
+        cancellationToken.ThrowIfCancellationRequested();
 
+        try
+		{
 			var query = booksUri.Query;
 			var queryParams = HttpUtility.ParseQueryString(query);
 
@@ -223,10 +278,18 @@ public class BookCollectionParser : IPageParser<List<Book>>, IBookCountProvider
 
 			return 0;
 		}
-		catch
+        catch (TaskCanceledException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
 		{
-			_logger.LogError("Ecxeption при получении количества кол-ва страниц при поиске книг в BookCollectionParser.GetPageCountAsync()");
-			throw;
+			_logger.LogError("Исключение при получении количества кол-ва страниц при поиске книг в BookCollectionParser.GetPageCountAsync(): {Ex}", ex);
+            return 0;
 		}
 	}
 
@@ -245,10 +308,10 @@ public class BookCollectionParser : IPageParser<List<Book>>, IBookCountProvider
 
 			return (bookId, authorId);
 		}
-		catch 
+		catch(Exception ex)
 		{
-			_logger.LogError("Ecxeption при получении Id автора или книги в BookCollectionParser.GetIds()");
-			throw;
+			_logger.LogError("Исключение при получении Id автора или книги в BookCollectionParser.GetIds(): {ex}", ex);
+			return (0, 0);
 		}
 	}
 }

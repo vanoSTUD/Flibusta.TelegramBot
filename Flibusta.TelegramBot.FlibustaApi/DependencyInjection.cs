@@ -12,6 +12,7 @@ public static class DependencyInjection
 		services.AddSingleton<IFlibustaApi, FlibustaApi>();
 
 		services.AddSingleton<IPageParser<Book>, BookParser>();
+		services.AddSingleton<IBookFileProvider, BookParser>();
 		services.AddSingleton<IPageParser<List<Book>>, BookCollectionParser>();
 		services.AddSingleton<IBookCountProvider, BookCollectionParser>();
 	}

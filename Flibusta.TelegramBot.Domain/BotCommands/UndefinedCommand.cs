@@ -1,26 +1,26 @@
-﻿using Telegram.Bot;
+﻿using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
+using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Microsoft.Extensions.Logging;
-using System.Diagnostics.Eventing.Reader;
 
 namespace Flibusta.TelegramBot.Core.BotCommands;
 
-public class StartCommand : CommandBase
+internal class UndefinedCommand : CommandBase
 {
     private readonly ITelegramBotClient _bot;
-    private readonly ILogger<StartCommand> _logger;
+    private readonly ILogger<UndefinedCommand> _logger;
 
-    public StartCommand(ITelegramBotClient bot, ILogger<StartCommand> logger)
+    public UndefinedCommand(ITelegramBotClient bot, ILogger<UndefinedCommand> logger)
     {
         _bot = bot;
         _logger = logger;
     }
 
-    public override string Name => CommandNames.Start;
+    public override string Name => CommandNames.Undefined;
 
     /// <exception cref="OperationCanceledException"></exception>
+    /// <exception cref="RequestException"></exception>
     public override async Task ExecuteAsync(Update update, string[]? args = null, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -33,21 +33,18 @@ public class StartCommand : CommandBase
             chatId = update.CallbackQuery.From.Id;
 
         if (chatId == null)
-        {
-            _logger.LogWarning("Некоректный вызов StartCommand.ExecuteAsync(). Update:  {Update}", update);
-            return;
-        }
+            return; // ToDo: добавить лог
 
         try
         {
-            await _bot.SendTextMessageAsync(chatId, "Привет!\nМожешь писать название книги, что-нибудь подберём! 🤓", parseMode: ParseMode.Html, cancellationToken: cancellationToken);
+            await _bot.SendTextMessageAsync(chatId, "Не распознал команду! 🤔", parseMode: ParseMode.Html, cancellationToken: cancellationToken);
         }
         catch (RequestException ex)
         {
             _logger.LogCritical("Исключение от Telegram Api: {ex}", ex);
             await _bot.SendTextMessageAsync(chatId, "Не удалось найти книгу", parseMode: ParseMode.Html, cancellationToken: cancellationToken);
         }
-        catch(Exception)
+        catch (Exception)
         {
             return;
         }

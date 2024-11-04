@@ -26,22 +26,19 @@ public class UpdateHandler
         _findBooksCommand = _commands.First(c => c.Name == CommandNames.FindBooks);
     }
 
-
-    internal async Task HandleErrorAsync(Exception exception, CancellationToken cancellationToken)
+    internal void HandleError(Exception exception, CancellationToken cancellationToken)
     {
         if (exception is OperationCanceledException or TaskCanceledException)
         {
-            _logger.LogWarning("Handle Task exception: {Ex}", exception);
+            _logger.LogWarning("Handle Operation Canceled Exception: {Ex}", exception);
             return;
         }
 
         _logger.LogError("HandleError: {Exception}", exception);
-
-        if (exception is RequestException)
-            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
     }
 
-
+    /// <exception cref="OperationCanceledException"></exception>
+    /// <exception cref="TaskCanceledException"></exception>
     internal async Task HandleUpdateAsync(Update update, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

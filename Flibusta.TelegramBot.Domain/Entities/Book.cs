@@ -2,14 +2,15 @@
 
 public class Book
 {
-    public int? Id { get; set; }
-    public string Title { get; set; } = default!;
+    public int? Id { get; set; } = default;
+    public string Title { get; set; } = string.Empty;
     public List<Author> Authors { get; set; } = [];
     public List<string> Genres { get; set; } = [];
-    public Uri? PhotoUri { get; set; }
-    public string? PublicationYear { get; set; }
-    public string? Description { get; set; }
-    public DateTime? AdditionDate { get; set; }
+    public Uri? PhotoUri { get; set; } = default;
+    public string? PublicationYear { get; set; } = default;
+    public string? Description { get; set; } = default;
+    public DateTime? AdditionDate { get; set; } = default;
+    public List<DownloadLink> DownloadLinks { get; set; } = [];
 
     public string GetAuthors()
     {
@@ -40,4 +41,10 @@ public class Book
 
         return genres;
     }
+}
+
+public class DownloadLink
+{
+    public string Name { get; set; } = string.Empty;
+    public Uri? Uri { get; set; } = default;
 }

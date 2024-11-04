@@ -12,19 +12,25 @@ public class FlibustaApi : IFlibustaApi
 
 	private readonly ILogger<FlibustaApi> _logger;
 	private readonly IPageParser<Book> _bookParser;
-	private readonly IPageParser<List<Book>> _bookCollectionParser;
+	private readonly IBookFileProvider _bookFileProvider;
 	private readonly IBookCountProvider _bookCountProvider;
+	private readonly IPageParser<List<Book>> _bookCollectionParser;
 
-    public FlibustaApi(IPageParser<Book> bookParser, ILogger<FlibustaApi> logger, IPageParser<List<Book>> bookCollectionParser, IBookCountProvider bookCountProvider)
+    public FlibustaApi(IPageParser<Book> bookParser, ILogger<FlibustaApi> logger, IPageParser<List<Book>> bookCollectionParser, IBookCountProvider bookCountProvider, IBookFileProvider bookFileProvider)
     {
-        _bookParser = bookParser;
         _logger = logger;
+        _bookParser = bookParser;
+        _bookFileProvider = bookFileProvider;
         _bookCountProvider = bookCountProvider;
         _bookCollectionParser = bookCollectionParser;
     }
 
+    /// <exception cref="OperationCanceledException"></exception>
+    /// <exception cref="TaskCanceledException"></exception>
     public async Task<Result<List<Book>>> GetBooksByPageAsync(string bookTitle, int page, int pageSize, CancellationToken cancellationToken = default)
 	{
+		cancellationToken.ThrowIfCancellationRequested();
+
 		try
 		{
 			Uri bookPageUri = new($"{FlibustaUrl}/booksearch?ask={bookTitle}");
@@ -38,7 +44,15 @@ public class FlibustaApi : IFlibustaApi
 
 			return booksResult;
 		}
-		catch (Exception ex)
+        catch (TaskCanceledException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
 		{
 			_logger.LogError("Exception: {ex}", ex);
 
@@ -46,15 +60,49 @@ public class FlibustaApi : IFlibustaApi
 		}
 	}
 
-	public async Task<Result<int>> GetBookCountAsync(string bookTitle, CancellationToken cancellationToken = default)
+    /// <exception cref="OperationCanceledException"></exception>
+    /// <exception cref="TaskCanceledException"></exception>
+    public async Task<Result<int>> GetBookCountAsync(string bookTitle, CancellationToken cancellationToken = default)
 	{
+		cancellationToken.ThrowIfCancellationRequested();
+
         Uri bookPageUri = new($"{FlibustaUrl}/booksearch?ask={bookTitle}");
 
 		return await _bookCountProvider.GetBookCountAsync(bookPageUri, cancellationToken);
     }
 
-	public async Task<Result<Book>> GetBookAsync(int id, CancellationToken cancellationToken = default)
+	public async Task<Result<Uri>> GetBookFileUri(Uri bookUri, CancellationToken cancellation = default)
 	{
+		cancellation.ThrowIfCancellationRequested();
+
+		try
+		{
+            var uriResult = await _bookFileProvider.GetFileUri(bookUri);
+
+            return uriResult;
+		}
+        catch (TaskCanceledException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Exception: {ex}", ex);
+
+            return new Error($"Не удалось найти файл");
+        }
+    }
+
+    /// <exception cref="OperationCanceledException"></exception>
+    /// <exception cref="TaskCanceledException"></exception>
+    public async Task<Result<Book>> GetBookAsync(int id, CancellationToken cancellationToken = default)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+
 		try
 		{
 			Uri bookPageUri = new($"{FlibustaUrl}/b/{id}");
@@ -68,7 +116,15 @@ public class FlibustaApi : IFlibustaApi
 
 			return bookResult;
 		}
-		catch (Exception ex)
+        catch (TaskCanceledException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
 		{
 			_logger.LogError("Exception: {ex}", ex);
 

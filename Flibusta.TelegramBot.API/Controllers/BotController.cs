@@ -1,8 +1,6 @@
 ﻿using Flibusta.TelegramBot.Core.Settings;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Telegram.Bot;
-using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 
 namespace Flibusta.TelegramBot.API.Controllers;
@@ -30,7 +28,7 @@ public class BotController : ControllerBase
         }
         catch (Exception exception)
         {
-            await updateHandler.HandleErrorAsync(exception, ct);
+            updateHandler.HandleError(exception, ct);
         }
 
         return Ok();

@@ -10,5 +10,7 @@ public static class DependencyInjection
         services.AddSingleton<CommandBase, StartCommand>();
         services.AddSingleton<CommandBase, FindBooksCommand>();
         services.AddSingleton<CommandBase, ShowBookCommand>();
+        services.AddSingleton<CommandBase, UndefinedCommand>();
+        services.AddSingleton<CommandBase, DownloadBookCommand>();
     }
 }
